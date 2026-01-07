@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Promedio móvil en línea</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            margin: 0;
+            background: #f6f7fb;
+        }
+
+        header {
+            padding: 18px 20px;
+            background: white;
+            border-bottom: 1px solid #e6e8ef;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 14px;
+            padding: 14px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #e6e8ef;
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, .04);
+        }
+
+        label {
+            font-size: 12px;
+            color: #40465a;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        input,
+        textarea,
+        button {
+            width: 100%;
+            box-sizing: border-box;
+            border-radius: 10px;
+            border: 1px solid #d8dcec;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            cursor: pointer;
+            border: 1px solid #d8dcec;
+            background: #111827;
+            color: white;
+        }
+
+        button.secondary {
+            background: white;
+            color: #111827;
+        }
+
+        button.danger {
+            background: #b42318;
+            border-color: #b42318;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #eef0f6;
+            padding: 8px 6px;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        th {
+            color: #40465a;
+            font-weight: 600;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 420px;
+        }
+
+        @media (max-width: 980px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Promedio móvil (tendencia) — página en línea</h1>
+        <div class="muted">Agrega datos → elige ventana → mira la curva del promedio móvil.</div>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2 style="margin:0 0 10px 0; font-size:15px;">Agregar datos</h2>
+
+            <div class="row">
+                <div>
+                    <label for="dateInput">Fecha (opcional)</label>
+                    <input id="dateInput" type="date" />
+                    <div class="muted">Si no pones fecha, se usará un índice 1..N.</div>
+                </div>
+                <div>
+                    <label for="valueInput">Valor</label>
+                    <input id="valueInput" type="number" step="any" placeholder="Ej. 12.5" />
+                </div>
+            </div>
+
+            <div class="btns">
+                <button id="addBtn">Agregar</button>
+                <button class="secondary" id="clearBtn" title="Borra todo">Limpiar</button>
+            </div>
+
+            <hr style="border:none;border-top:1px solid #eef0f6;margin:14px 0;">
+
+            <label for="bulkInput">Pegar lista (una por línea)</label>
+            <textarea id="bulkInput" placeholder="Formatos soportados:
+- 2026-01-01, 12.5
+- 2026/01/01 12.5
+- 12.5
+- 12.5; 2026-01-01 (se intentará interpretar)"></textarea>
+
+            <div class="btns">
+                <button class="secondary" id="importBtn">Importar</button>
+                <button class="secondary" id="exportBtn">Exportar CSV</button>
+            </div>
+
+            <hr style="border:none;border-top:1px solid #eef0f6;margin:14px 0;">
+
+            <label for="windowInput">Ventana promedio móvil (N)</label>
+            <input id="windowInput" type="number" min="1" value="7" />
+
+            <div class="muted" style="margin-top:10px;">
+                Tip: prueba 7, 14, 30 según tu frecuencia de datos.
+            </div>
+
+            <h3 style="margin:14px 0 8px 0; font-size:14px;">Datos</h3>
+            <div style="max-height:220px; overflow:auto; border:1px solid #eef0f6; border-radius:10px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Fecha</th>
+                            <th>Valor</th>
+                            <th>MA</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="btns" style="margin-top:10px;">
+                <button class="danger" id="deleteLastBtn">Eliminar último</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2 style="margin:0 0 10px 0; font-size:15px;">Gráfica</h2>
+            <canvas id="chart" width="1200" height="520"></canvas>
+            <div class="muted" id="summary" style="margin-top:10px;"></div>
+        </section>
+    </main>
+
+    <script>
+        const state = {
+            points: [] // { xLabel: string, x: number, value: number, date?: string }
+        };
+
+        const els = {
+            dateInput: document.getElementById('dateInput'),
+            valueInput: document.getElementById('valueInput'),
+            addBtn: document.getElementById('addBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            bulkInput: document.getElementById('bulkInput'),
+            importBtn: document.getElementById('importBtn'),
+            exportBtn: document.getElementById('exportBtn'),
+            windowInput: document.getElementById('windowInput'),
+            tableBody: document.getElementById('tableBody'),
+            deleteLastBtn: document.getElementById('deleteLastBtn'),
+            canvas: document.getElementById('chart'),
+            summary: document.getElementById('summary'),
+        };
+
+        function safeNumber(v) {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function addPoint(dateStr, value) {
+            const idx = state.points.length + 1;
+            const xLabel = dateStr ? dateStr : String(idx);
+            state.points.push({ xLabel, x: idx, value, date: dateStr || '' });
+            render();
+        }
+
+        function movingAverage(values, windowSize) {
+            const ma = new Array(values.length).fill(null);
+            if (windowSize <= 0) return ma;
+            let sum = 0;
+            for (let i = 0; i < values.length; i++) {
+                sum += values[i];
+                if (i >= windowSize) sum -= values[i - windowSize];
+                if (i >= windowSize - 1) ma[i] = sum / windowSize;
+            }
+            return ma;
+        }
+
+        function parseBulk(text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+            const parsed = [];
+            for (const line of lines) {
+                // separadores comunes
+                const parts = line.split(/[,;|\t]+/).map(s => s.trim()).filter(Boolean);
+
+                let dateCandidate = null;
+                let valueCandidate = null;
+
+                // si hay 2+ columnas, intentamos adivinar cuál es número
+                if (parts.length >= 2) {
+                    const n0 = safeNumber(parts[0]);
+                    const n1 = safeNumber(parts[1]);
+
+                    if (n0 !== null && n1 === null) { valueCandidate = n0; dateCandidate = parts[1]; }
+                    else if (n1 !== null && n0 === null) { valueCandidate = n1; dateCandidate = parts[0]; }
+                    else if (n0 !== null && n1 !== null) { valueCandidate = n1; dateCandidate = parts[0]; } // asume fecha,valor
+                    else { // fallback: buscar número en toda la línea
+                        const m = line.match(/-?\d+(\.\d+)?/);
+                        valueCandidate = m ? safeNumber(m[0]) : null;
+                    }
+                } else {
+                    // una sola cosa: si es número, lo tomamos como valor
+                    const n = safeNumber(parts[0]);
+                    if (n !== null) valueCandidate = n;
+                    else {
+                        // línea con fecha + valor separado por espacio
+                        const m = line.match(/(-?\d+(\.\d+)?)/);
+                        valueCandidate = m ? safeNumber(m[0]) : null;
+                        dateCandidate = line.replace(m ? m[0] : '', '').trim();
+                    }
+                }
+
+                if (valueCandidate === null) continue;
+
+                // normaliza fechas tipo 2026/01/01 -> 2026-01-01
+                if (dateCandidate) {
+                    const norm = dateCandidate.replaceAll('/', '-');
+                    // valida formato básico yyyy-mm-dd
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(norm)) dateCandidate = norm;
+                    else dateCandidate = dateCandidate; // se deja como etiqueta si no es estándar
+                }
+
+                parsed.push({ date: dateCandidate || '', value: valueCandidate });
+            }
+            return parsed;
+        }
+
+        function exportCSV() {
+            const windowSize = Math.max(1, parseInt(els.windowInput.value || '1', 10));
+            const values = state.points.map(p => p.value);
+            const ma = movingAverage(values, windowSize);
+
+            const rows = [['index', 'date', 'label', 'value', 'moving_avg']];
+            for (let i = 0; i < state.points.length; i++) {
+                const p = state.points[i];
+                rows.push([
+                    String(i + 1),
+                    p.date || '',
+                    p.xLabel,
+                    String(p.value),
+                    ma[i] === null ? '' : String(ma[i])
+                ]);
+            }
+            const csv = rows.map(r => r.map(cell => {
+                const s = String(cell ?? '');
+                return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+            }).join(',')).join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'promedio_movil.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function drawChart(labels, values, maValues) {
+            const canvas = els.canvas;
+            const ctx = canvas.getContext('2d');
+
+            // Ajuste para pantallas HiDPI
+            const dpr = window.devicePixelRatio || 1;
+            const cssW = canvas.clientWidth || 1200;
+            const cssH = 420;
+            canvas.style.height = cssH + 'px';
+            canvas.width = Math.floor(cssW * dpr);
+            canvas.height = Math.floor(cssH * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            ctx.clearRect(0, 0, cssW, cssH);
+
+            const padding = { left: 50, right: 20, top: 20, bottom: 45 };
+            const w = cssW - padding.left - padding.right;
+            const h = cssH - padding.top - padding.bottom;
+
+            const allY = values.concat(maValues.filter(v => v !== null));
+            const minY = Math.min(...allY);
+            const maxY = Math.max(...allY);
+            const span = (maxY - minY) || 1;
+
+            const x = (i) => padding.left + (labels.length === 1 ? w / 2 : (i / (labels.length - 1)) * w);
+            const y = (v) => padding.top + (1 - ((v - minY) / span)) * h;
+
+            // ejes
+            ctx.strokeStyle = '#cfd6ea';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, padding.top);
+            ctx.lineTo(padding.left, padding.top + h);
+            ctx.lineTo(padding.left + w, padding.top + h);
+            ctx.stroke();
+
+            // grid horizontal
+            ctx.strokeStyle = '#eef0f6';
+            for (let i = 1; i <= 4; i++) {
+                const yy = padding.top + (i / 5) * h;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, yy);
+                ctx.lineTo(padding.left + w, yy);
+                ctx.stroke();
+            }
+
+            // ticks y labels (solo algunos para no saturar)
+            ctx.fillStyle = '#40465a';
+            ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+            const tickCount = Math.min(6, labels.length);
+            for (let t = 0; t < tickCount; t++) {
+                const i = tickCount === 1 ? 0 : Math.round((t / (tickCount - 1)) * (labels.length - 1));
+                const lx = x(i);
+                ctx.fillText(labels[i], Math.max(0, lx - 18), padding.top + h + 24);
+            }
+
+            // rango y
+            ctx.fillText(minY.toFixed(2), 6, padding.top + h);
+            ctx.fillText(maxY.toFixed(2), 6, padding.top + 10);
+
+            function drawLine(series, stroke, width = 2, dashed = false) {
+                ctx.strokeStyle = stroke;
+                ctx.lineWidth = width;
+                ctx.setLineDash(dashed ? [6, 4] : []);
+                ctx.beginPath();
+                let started = false;
+                for (let i = 0; i < series.length; i++) {
+                    const v = series[i];
+                    if (v === null || !Number.isFinite(v)) continue;
+                    const xx = x(i);
+                    const yy = y(v);
+                    if (!started) { ctx.moveTo(xx, yy); started = true; }
+                    else ctx.lineTo(xx, yy);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // data line
+            drawLine(values, '#111827', 2, false);
+
+            // moving average line
+            drawLine(maValues, '#2563eb', 3, true);
+
+            // leyenda
+            ctx.fillStyle = '#111827';
+            ctx.fillText('Dato', padding.left + 10, padding.top + 14);
+            ctx.fillStyle = '#2563eb';
+            ctx.fillText('Promedio móvil', padding.left + 60, padding.top + 14);
+        }
+
+        function renderTable(values, ma) {
+            els.tableBody.innerHTML = '';
+            for (let i = 0; i < state.points.length; i++) {
+                const p = state.points[i];
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td>${p.date || ''}</td>
+        <td>${p.value}</td>
+        <td>${ma[i] === null ? '' : ma[i].toFixed(4)}</td>
+      `;
+                els.tableBody.appendChild(tr);
+            }
+        }
+
+        function render() {
+            const windowSize = Math.max(1, parseInt(els.windowInput.value || '1', 10));
+            const values = state.points.map(p => p.value);
+            const labels = state.points.map(p => p.xLabel);
+
+            const ma = movingAverage(values, windowSize);
+
+            renderTable(values, ma);
+            if (values.length > 0) drawChart(labels, values, ma);
+
+            const lastMA = [...ma].reverse().find(v => v !== null);
+            els.summary.textContent =
+                `Puntos: ${values.length} | Ventana: ${windowSize} | Último promedio móvil disponible: ${lastMA === undefined ? 'N/A' : lastMA.toFixed(4)
+                }`;
+        }
+
+        // eventos
+        els.addBtn.addEventListener('click', () => {
+            const value = safeNumber(els.valueInput.value);
+            if (value === null) return alert('Ingresa un valor numérico válido.');
+            const dateStr = els.dateInput.value || '';
+            addPoint(dateStr, value);
+            els.valueInput.value = '';
+        });
+
+        els.clearBtn.addEventListener('click', () => {
+            state.points = [];
+            render();
+        });
+
+        els.importBtn.addEventListener('click', () => {
+            const parsed = parseBulk(els.bulkInput.value || '');
+            if (parsed.length === 0) return alert('No se detectaron valores válidos.');
+            for (const p of parsed) addPoint(p.date, p.value);
+            els.bulkInput.value = '';
+        });
+
+        els.exportBtn.addEventListener('click', exportCSV);
+
+        els.windowInput.addEventListener('input', render);
+
+        els.deleteLastBtn.addEventListener('click', () => {
+            state.points.pop();
+            render();
+        });
+
+        // datos de ejemplo
+        addPoint('2026-01-01', 10);
+        addPoint('2026-01-02', 12);
+        addPoint('2026-01-03', 9);
+        addPoint('2026-01-04', 14);
+        addPoint('2026-01-05', 13);
+        addPoint('2026-01-06', 15);
+    </script>
+</body>
+
+</html>
