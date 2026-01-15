@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Promedio móvil + Control (Setpoint/Límites)</title>
+  <title>Molinos 361/362 + Promedio móvil global</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; background:#f6f7fb; }
     header { padding: 18px 20px; background: white; border-bottom: 1px solid #e6e8ef; }
     h1 { margin: 0; font-size: 18px; }
-    main { display: grid; grid-template-columns: 420px 1fr; gap: 14px; padding: 14px; }
+    main { display: grid; grid-template-columns: 440px 1fr; gap: 14px; padding: 14px; }
     .card { background: white; border: 1px solid #e6e8ef; border-radius: 14px; padding: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.04); }
     label { font-size: 12px; color:#40465a; display:block; margin-bottom: 6px; }
     input, textarea, select, button {
@@ -17,7 +17,6 @@
     }
     textarea { min-height: 120px; resize: vertical; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .btns { display:flex; gap:10px; margin-top:10px; }
     button { cursor:pointer; border: 1px solid #d8dcec; background:#111827; color:white; }
     button.secondary { background:white; color:#111827; }
@@ -26,48 +25,54 @@
     th, td { border-bottom: 1px solid #eef0f6; padding: 8px 6px; font-size: 13px; text-align:left; }
     th { color:#40465a; font-weight: 600; }
     .muted { color:#6b7280; font-size: 12px; }
-    canvas { width: 100%; height: 460px; }
-    .pill {
-      display:inline-block; padding:4px 10px; border-radius:999px;
-      font-size:12px; border:1px solid #e6e8ef; background:#fafbff; color:#40465a;
-    }
-    @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+    canvas { width: 100%; height: 360px; }
+    .grid2 { display:grid; grid-template-columns: 1fr; gap: 14px; }
+    .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid #e6e8ef; background:#fafbff; color:#40465a; }
+    @media (max-width: 980px) { main { grid-template-columns: 1fr; } canvas { height: 340px; } }
   </style>
 </head>
 <body>
 <header>
-  <h1>Promedio móvil + Gráfico de control (Setpoint/LCL/UCL)</h1>
-  <div class="muted">Se guarda localmente en tu navegador (no se envía a ningún servidor).</div>
+  <h1>Molinos 361 / 362 — 2 gráficas + Promedio móvil global</h1>
+  <div class="muted">Los datos se guardan en tu navegador (localStorage). El MA se calcula con todos los datos (sin separar por molino).</div>
 </header>
 
 <main>
   <section class="card">
-    <h2 style="margin:0 0 10px 0; font-size:15px;">Datos</h2>
+    <h2 style="margin:0 0 10px 0; font-size:15px;">Agregar dato</h2>
 
     <div class="row">
       <div>
-        <label for="dateInput">Fecha (opcional)</label>
-        <input id="dateInput" type="date" />
-        <div class="muted">Si no pones fecha, se usará índice 1..N.</div>
+        <label for="dtInput">Fecha y hora</label>
+        <input id="dtInput" type="datetime-local" />
+        <div class="muted">Si lo dejas vacío, se usará la fecha/hora actual.</div>
       </div>
       <div>
-        <label for="valueInput">Valor</label>
-        <input id="valueInput" type="number" step="any" placeholder="Ej. 12.5" />
+        <label for="molinoInput">Molino</label>
+        <select id="molinoInput">
+          <option value="361">361</option>
+          <option value="362">362</option>
+        </select>
       </div>
     </div>
 
+    <label for="valueInput" style="margin-top:10px;">Valor</label>
+    <input id="valueInput" type="number" step="any" placeholder="Ej. 12.5" />
+
     <div class="btns">
       <button id="addBtn">Agregar</button>
-      <button class="secondary" id="clearBtn" title="Borra todo">Limpiar todo</button>
+      <button class="secondary" id="clearBtn">Limpiar todo</button>
     </div>
 
     <hr style="border:none;border-top:1px solid #eef0f6;margin:14px 0;">
 
     <label for="bulkInput">Pegar lista (una por línea)</label>
-    <textarea id="bulkInput" placeholder="Ejemplos:
-2026-01-01, 12.5
-2026/01/02 13.0
-12.7"></textarea>
+    <textarea id="bulkInput" placeholder="Formatos soportados (ejemplos):
+2026-01-14T08:15,361,12.5
+2026-01-14 08:15, 362, 13.1
+361, 12.0
+362, 11.7
+12.3   (si no pones molino, asume 361)"></textarea>
 
     <div class="btns">
       <button class="secondary" id="importBtn">Importar</button>
@@ -76,97 +81,111 @@
 
     <hr style="border:none;border-top:1px solid #eef0f6;margin:14px 0;">
 
-    <h2 style="margin:0 0 10px 0; font-size:15px;">Promedio móvil</h2>
+    <h2 style="margin:0 0 10px 0; font-size:15px;">Promedio móvil (global)</h2>
     <label for="windowInput">Ventana (N)</label>
     <input id="windowInput" type="number" min="1" value="7" />
-    <div class="muted">MA empieza a partir del punto N.</div>
-
-    <hr style="border:none;border-top:1px solid #eef0f6;margin:14px 0;">
-
-    <h2 style="margin:0 0 10px 0; font-size:15px;">Control: Setpoint y límites</h2>
-
-    <label for="controlMode">Modo de límites</label>
-    <select id="controlMode">
-      <option value="tolerance">Setpoint ± tolerancia</option>
-      <option value="direct">LCL/UCL directos</option>
-    </select>
-
-    <div class="row3" style="margin-top:10px;">
-      <div>
-        <label for="setpointInput">Setpoint (objetivo)</label>
-        <input id="setpointInput" type="number" step="any" placeholder="Ej. 12.0" />
-      </div>
-      <div id="tolWrap">
-        <label for="toleranceInput">Tolerancia (±)</label>
-        <input id="toleranceInput" type="number" step="any" placeholder="Ej. 1.5" />
-      </div>
-      <div id="uclWrap" style="display:none;">
-        <label for="uclInput">UCL</label>
-        <input id="uclInput" type="number" step="any" placeholder="Ej. 13.5" />
-      </div>
-    </div>
-
-    <div class="row3" style="margin-top:10px;">
-      <div id="lclWrap" style="display:none;">
-        <label for="lclInput">LCL</label>
-        <input id="lclInput" type="number" step="any" placeholder="Ej. 10.5" />
-      </div>
-      <div>
-        <label for="showControl">Mostrar líneas</label>
-        <select id="showControl">
-          <option value="on">Sí</option>
-          <option value="off">No</option>
-        </select>
-      </div>
-      <div>
-        <label for="persistInfo">Guardado</label>
-        <div class="pill" id="persistInfo">Activo</div>
-      </div>
-    </div>
+    <div class="muted">Se calcula ordenando por fecha/hora con TODOS los datos (361 y 362 juntos).</div>
 
     <div class="btns">
       <button class="secondary" id="saveSettingsBtn">Guardar ajustes</button>
       <button class="danger" id="deleteLastBtn">Eliminar último</button>
     </div>
 
+    <div style="margin-top:10px;">
+      <span class="pill" id="persistInfo">Activo</span>
+    </div>
+
     <h3 style="margin:14px 0 8px 0; font-size:14px;">Tabla</h3>
-    <div style="max-height:240px; overflow:auto; border:1px solid #eef0f6; border-radius:10px;">
+    <div style="max-height:260px; overflow:auto; border:1px solid #eef0f6; border-radius:10px;">
       <table>
         <thead>
-          <tr><th>#</th><th>Fecha</th><th>Valor</th><th>MA</th></tr>
+          <tr><th>#</th><th>FechaHora</th><th>Molino</th><th>Valor</th><th>MA(global)</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
       </table>
     </div>
-
-    <div class="muted" style="margin-top:10px;">
-      Tip: si quieres “control chart” clásico (X̄/R, X̄/S, I-MR, etc.), dímelo y lo adapto.
-    </div>
   </section>
 
   <section class="card">
-    <h2 style="margin:0 0 10px 0; font-size:15px;">Gráfica</h2>
-    <canvas id="chart" width="1200" height="600"></canvas>
+    <h2 style="margin:0 0 10px 0; font-size:15px;">Gráficas</h2>
+
+    <div class="grid2">
+      <div class="card" style="box-shadow:none;">
+        <div class="muted" style="margin-bottom:6px;">Molino 361 (negro) + MA global (azul punteado)</div>
+        <canvas id="chart361" width="1200" height="500"></canvas>
+      </div>
+
+      <div class="card" style="box-shadow:none;">
+        <div class="muted" style="margin-bottom:6px;">Molino 362 (negro) + MA global (azul punteado)</div>
+        <canvas id="chart362" width="1200" height="500"></canvas>
+      </div>
+    </div>
+
     <div class="muted" id="summary" style="margin-top:10px;"></div>
   </section>
 </main>
 
 <script>
-  // ===== Persistencia =====
-  const STORAGE_KEY = "pm_control_state_v1";
+  const STORAGE_KEY = "pm_molinos_state_v2";
 
   const state = {
-    points: [], // { xLabel, x, value, date }
-    settings: {
-      windowSize: 7,
-      controlMode: "tolerance", // "tolerance" | "direct"
-      setpoint: null,
-      tolerance: null,
-      lcl: null,
-      ucl: null,
-      showControl: "on"
-    }
+    points: [], // { id, dtISO, dtMs, molino, value }
+    settings: { windowSize: 7 }
   };
+
+  const els = {
+    dtInput: document.getElementById("dtInput"),
+    molinoInput: document.getElementById("molinoInput"),
+    valueInput: document.getElementById("valueInput"),
+    addBtn: document.getElementById("addBtn"),
+    clearBtn: document.getElementById("clearBtn"),
+    bulkInput: document.getElementById("bulkInput"),
+    importBtn: document.getElementById("importBtn"),
+    exportBtn: document.getElementById("exportBtn"),
+    windowInput: document.getElementById("windowInput"),
+    saveSettingsBtn: document.getElementById("saveSettingsBtn"),
+    deleteLastBtn: document.getElementById("deleteLastBtn"),
+    persistInfo: document.getElementById("persistInfo"),
+    tableBody: document.getElementById("tableBody"),
+    chart361: document.getElementById("chart361"),
+    chart362: document.getElementById("chart362"),
+    summary: document.getElementById("summary"),
+  };
+
+  function safeNumber(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function normalizeMolino(m) {
+    const s = String(m || "").trim();
+    if (s === "361" || s === "362") return s;
+    return null;
+  }
+
+  function nowLocalDatetimeISO() {
+    // datetime-local necesita formato YYYY-MM-DDTHH:mm (sin segundos)
+    const d = new Date();
+    const pad = (x) => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function parseDatetimeToISO(dtStr) {
+    // dtStr puede venir como "2026-01-14T08:15" o "2026-01-14 08:15"
+    if (!dtStr) return null;
+    const cleaned = dtStr.trim().replace(" ", "T");
+    // si viene sin "T" pero con fecha, intentamos
+    const d = new Date(cleaned);
+    if (Number.isNaN(d.getTime())) return null;
+    // guardamos ISO completo para consistencia
+    return d.toISOString();
+  }
+
+  function formatLocal(dtISO) {
+    const d = new Date(dtISO);
+    const pad = (x) => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
 
   function saveToStorage() {
     try {
@@ -183,16 +202,16 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return false;
       const parsed = JSON.parse(raw);
-
-      // Validación básica
       if (parsed && Array.isArray(parsed.points) && parsed.settings) {
-        state.points = parsed.points.map((p, i) => ({
-          xLabel: String(p.xLabel ?? (i+1)),
-          x: Number(p.x ?? (i+1)),
-          value: Number(p.value),
-          date: String(p.date ?? "")
-        })).filter(p => Number.isFinite(p.value));
-
+        state.points = parsed.points
+          .map(p => ({
+            id: String(p.id),
+            dtISO: String(p.dtISO),
+            dtMs: Number(p.dtMs),
+            molino: String(p.molino),
+            value: Number(p.value),
+          }))
+          .filter(p => Number.isFinite(p.value) && Number.isFinite(p.dtMs) && (p.molino === "361" || p.molino === "362"));
         state.settings = { ...state.settings, ...parsed.settings };
         return true;
       }
@@ -202,28 +221,29 @@
     return false;
   }
 
-  // ===== Helpers =====
-  function safeNumber(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  }
+  function addPoint(dtLocalStr, molinoStr, value) {
+    const molino = normalizeMolino(molinoStr) || "361";
+    const dtISO = parseDatetimeToISO(dtLocalStr) || new Date().toISOString();
+    const dtMs = new Date(dtISO).getTime();
 
-  function addPoint(dateStr, value) {
-    const idx = state.points.length + 1;
-    const xLabel = dateStr ? dateStr : String(idx);
-    state.points.push({ xLabel, x: idx, value, date: dateStr || "" });
+    const id = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + "_" + Math.random().toString(16).slice(2);
+
+    state.points.push({ id, dtISO, dtMs, molino, value });
     saveToStorage();
     render();
   }
 
-  function movingAverage(values, windowSize) {
-    const ma = new Array(values.length).fill(null);
-    if (windowSize <= 0) return ma;
+  function movingAverageByIndex(sortedPoints, windowSize) {
+    // sortedPoints: puntos ordenados por dtMs asc
+    // devuelve map id -> MA
+    const ma = new Map();
+    const vals = sortedPoints.map(p => p.value);
     let sum = 0;
-    for (let i = 0; i < values.length; i++) {
-      sum += values[i];
-      if (i >= windowSize) sum -= values[i - windowSize];
-      if (i >= windowSize - 1) ma[i] = sum / windowSize;
+    for (let i = 0; i < vals.length; i++) {
+      sum += vals[i];
+      if (i >= windowSize) sum -= vals[i - windowSize];
+      if (i >= windowSize - 1) ma.set(sortedPoints[i].id, sum / windowSize);
+      else ma.set(sortedPoints[i].id, null);
     }
     return ma;
   }
@@ -231,62 +251,88 @@
   function parseBulk(text) {
     const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
     const parsed = [];
+
     for (const line of lines) {
+      // aceptamos separadores comunes: coma, punto y coma, tab
       const parts = line.split(/[,;|\t]+/).map(s => s.trim()).filter(Boolean);
 
-      let dateCandidate = "";
-      let valueCandidate = null;
+      let dt = "";
+      let molino = "";
+      let value = null;
 
-      if (parts.length >= 2) {
+      // Casos:
+      // A) dt,molino,value
+      // B) dt value (separado por espacios) -> lo detectamos
+      // C) molino,value
+      // D) value (asume molino 361 y dt ahora)
+      if (parts.length >= 3) {
+        dt = parts[0];
+        molino = parts[1];
+        value = safeNumber(parts[2]);
+      } else if (parts.length === 2) {
+        const m1 = normalizeMolino(parts[0]);
+        const m2 = normalizeMolino(parts[1]);
         const n0 = safeNumber(parts[0]);
         const n1 = safeNumber(parts[1]);
-        if (n0 !== null && n1 === null) { valueCandidate = n0; dateCandidate = parts[1]; }
-        else if (n1 !== null && n0 === null) { valueCandidate = n1; dateCandidate = parts[0]; }
-        else if (n0 !== null && n1 !== null) { valueCandidate = n1; dateCandidate = parts[0]; }
+
+        if (m1) { molino = parts[0]; value = safeNumber(parts[1]); }
+        else if (m2) { molino = parts[1]; value = safeNumber(parts[0]); }
+        else if (n0 !== null && n1 === null) { value = n0; dt = parts[1]; }
+        else if (n1 !== null && n0 === null) { value = n1; dt = parts[0]; }
         else {
-          const m = line.match(/-?\d+(\.\d+)?/);
-          valueCandidate = m ? safeNumber(m[0]) : null;
+          // fallback: intento dt,value
+          dt = parts[0];
+          value = safeNumber(parts[1]);
         }
       } else {
-        const n = safeNumber(parts[0]);
-        if (n !== null) valueCandidate = n;
-        else {
-          const m = line.match(/(-?\d+(\.\d+)?)/);
-          valueCandidate = m ? safeNumber(m[0]) : null;
-          dateCandidate = line.replace(m ? m[0] : "", "").trim();
+        // 1 sola columna: puede ser solo valor o "dt molino valor" con espacios
+        const tryNumber = safeNumber(parts[0]);
+        if (tryNumber !== null) {
+          value = tryNumber;
+          molino = "361";
+        } else {
+          // por espacios
+          const p2 = line.split(/\s+/).map(s => s.trim()).filter(Boolean);
+          // Ej: "2026-01-14 08:15 361 12.5" (4 tokens)
+          if (p2.length >= 3) {
+            // buscamos valor al final
+            const last = safeNumber(p2[p2.length - 1]);
+            if (last !== null) {
+              value = last;
+              // buscamos molino en tokens
+              const mm = p2.find(t => normalizeMolino(t));
+              molino = mm || "361";
+              // dt = todo menos molino y valor
+              const dtTokens = p2.filter(t => t !== molino && t !== String(value));
+              dt = dtTokens.slice(0, 2).join(" "); // típico "YYYY-MM-DD HH:mm"
+            }
+          }
         }
       }
 
-      if (valueCandidate === null) continue;
-
-      if (dateCandidate) {
-        const norm = dateCandidate.replaceAll("/", "-");
-        if (/^\d{4}-\d{2}-\d{2}$/.test(norm)) dateCandidate = norm;
-      }
-
-      parsed.push({ date: dateCandidate || "", value: valueCandidate });
+      if (value === null) continue;
+      if (!molino) molino = "361";
+      parsed.push({ dt, molino, value });
     }
+
     return parsed;
   }
 
   function exportCSV() {
     const windowSize = Math.max(1, parseInt(els.windowInput.value || "1", 10));
-    const values = state.points.map(p => p.value);
-    const ma = movingAverage(values, windowSize);
+    const sorted = [...state.points].sort((a,b) => a.dtMs - b.dtMs);
+    const maMap = movingAverageByIndex(sorted, windowSize);
 
-    const limits = computeLimits();
-    const rows = [["index","date","label","value","moving_avg","setpoint","lcl","ucl"]];
-    for (let i = 0; i < state.points.length; i++) {
-      const p = state.points[i];
+    const rows = [["id","datetime_iso","datetime_local","molino","value","ma_global"]];
+    for (const p of sorted) {
+      const ma = maMap.get(p.id);
       rows.push([
-        String(i + 1),
-        p.date || "",
-        p.xLabel,
+        p.id,
+        p.dtISO,
+        formatLocal(p.dtISO),
+        p.molino,
         String(p.value),
-        ma[i] === null ? "" : String(ma[i]),
-        limits.setpoint ?? "",
-        limits.lcl ?? "",
-        limits.ucl ?? ""
+        ma === null ? "" : String(ma)
       ]);
     }
 
@@ -299,128 +345,34 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "promedio_movil_control.csv";
+    a.download = "molinos_ma_global.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  function computeLimits() {
-    const mode = state.settings.controlMode;
-    const show = state.settings.showControl === "on";
-    if (!show) return { setpoint: null, lcl: null, ucl: null };
-
-    const sp = safeNumber(state.settings.setpoint);
-    if (sp === null) return { setpoint: null, lcl: null, ucl: null };
-
-    if (mode === "tolerance") {
-      const tol = safeNumber(state.settings.tolerance);
-      if (tol === null) return { setpoint: sp, lcl: null, ucl: null };
-      return { setpoint: sp, lcl: sp - tol, ucl: sp + tol };
-    }
-
-    // direct
-    const lcl = safeNumber(state.settings.lcl);
-    const ucl = safeNumber(state.settings.ucl);
-    return { setpoint: sp, lcl: lcl, ucl: ucl };
-  }
-
-  // ===== UI elements =====
-  const els = {
-    dateInput: document.getElementById("dateInput"),
-    valueInput: document.getElementById("valueInput"),
-    addBtn: document.getElementById("addBtn"),
-    clearBtn: document.getElementById("clearBtn"),
-    bulkInput: document.getElementById("bulkInput"),
-    importBtn: document.getElementById("importBtn"),
-    exportBtn: document.getElementById("exportBtn"),
-    windowInput: document.getElementById("windowInput"),
-    tableBody: document.getElementById("tableBody"),
-    deleteLastBtn: document.getElementById("deleteLastBtn"),
-    canvas: document.getElementById("chart"),
-    summary: document.getElementById("summary"),
-    controlMode: document.getElementById("controlMode"),
-    setpointInput: document.getElementById("setpointInput"),
-    toleranceInput: document.getElementById("toleranceInput"),
-    lclInput: document.getElementById("lclInput"),
-    uclInput: document.getElementById("uclInput"),
-    showControl: document.getElementById("showControl"),
-    saveSettingsBtn: document.getElementById("saveSettingsBtn"),
-    persistInfo: document.getElementById("persistInfo"),
-    tolWrap: document.getElementById("tolWrap"),
-    lclWrap: document.getElementById("lclWrap"),
-    uclWrap: document.getElementById("uclWrap"),
-  };
-
-  function syncSettingsToInputs() {
-    els.windowInput.value = String(state.settings.windowSize ?? 7);
-    els.controlMode.value = state.settings.controlMode ?? "tolerance";
-    els.setpointInput.value = state.settings.setpoint ?? "";
-    els.toleranceInput.value = state.settings.tolerance ?? "";
-    els.lclInput.value = state.settings.lcl ?? "";
-    els.uclInput.value = state.settings.ucl ?? "";
-    els.showControl.value = state.settings.showControl ?? "on";
-    updateControlModeVisibility();
-  }
-
-  function readInputsToSettings() {
-    state.settings.windowSize = Math.max(1, parseInt(els.windowInput.value || "1", 10));
-    state.settings.controlMode = els.controlMode.value;
-    state.settings.setpoint = safeNumber(els.setpointInput.value);
-    state.settings.tolerance = safeNumber(els.toleranceInput.value);
-    state.settings.lcl = safeNumber(els.lclInput.value);
-    state.settings.ucl = safeNumber(els.uclInput.value);
-    state.settings.showControl = els.showControl.value;
-  }
-
-  function updateControlModeVisibility() {
-    const mode = els.controlMode.value;
-    if (mode === "tolerance") {
-      els.tolWrap.style.display = "block";
-      els.lclWrap.style.display = "none";
-      els.uclWrap.style.display = "none";
-    } else {
-      els.tolWrap.style.display = "none";
-      els.lclWrap.style.display = "block";
-      els.uclWrap.style.display = "block";
-    }
-  }
-
-  // ===== Render =====
-  function renderTable(values, ma) {
+  function renderTable(sorted, maMap) {
     els.tableBody.innerHTML = "";
-    for (let i = 0; i < state.points.length; i++) {
-      const p = state.points[i];
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      const ma = maMap.get(p.id);
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${i + 1}</td>
-        <td>${p.date || ""}</td>
+        <td>${formatLocal(p.dtISO)}</td>
+        <td>${p.molino}</td>
         <td>${p.value}</td>
-        <td>${ma[i] === null ? "" : ma[i].toFixed(4)}</td>
+        <td>${ma === null ? "" : ma.toFixed(4)}</td>
       `;
       els.tableBody.appendChild(tr);
     }
   }
 
-  function drawHorizontalLine(ctx, cssW, padding, yPos, label, dash = [6,4]) {
-    ctx.save();
-    ctx.setLineDash(dash);
-    ctx.beginPath();
-    ctx.moveTo(padding.left, yPos);
-    ctx.lineTo(cssW - padding.right, yPos);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillText(label, padding.left + 6, yPos - 6);
-    ctx.restore();
-  }
-
-  function drawChart(labels, values, maValues) {
-    const canvas = els.canvas;
+  function drawChart(canvas, seriesPoints, globalSorted, maMap, titleMolino) {
     const ctx = canvas.getContext("2d");
 
-    // HiDPI
     const dpr = window.devicePixelRatio || 1;
     const cssW = canvas.clientWidth || 1200;
-    const cssH = 460;
+    const cssH = 360;
     canvas.style.height = cssH + "px";
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
@@ -428,25 +380,34 @@
 
     ctx.clearRect(0, 0, cssW, cssH);
 
-    const padding = { left: 60, right: 20, top: 22, bottom: 55 };
+    const padding = { left: 60, right: 20, top: 20, bottom: 55 };
     const w = cssW - padding.left - padding.right;
     const h = cssH - padding.top - padding.bottom;
 
-    const limits = computeLimits();
-    const extraY = [];
-    if (limits.setpoint !== null) extraY.push(limits.setpoint);
-    if (limits.lcl !== null) extraY.push(limits.lcl);
-    if (limits.ucl !== null) extraY.push(limits.ucl);
+    // Eje X común: índice de globalSorted (timeline global)
+    const indexById = new Map();
+    for (let i = 0; i < globalSorted.length; i++) indexById.set(globalSorted[i].id, i);
 
-    const allY = values
-      .concat(maValues.filter(v => v !== null))
-      .concat(extraY);
+    const N = globalSorted.length;
+    const x = (i) => padding.left + (N === 1 ? w/2 : (i / (N - 1)) * w);
+
+    // preparar series y rango Y (dato molino + MA global)
+    const molinoSeries = new Array(N).fill(null);
+    for (const p of seriesPoints) {
+      const idx = indexById.get(p.id);
+      if (idx !== undefined) molinoSeries[idx] = p.value;
+    }
+    const maSeries = globalSorted.map(p => maMap.get(p.id));
+
+    const allY = []
+      .concat(molinoSeries.filter(v => v !== null))
+      .concat(maSeries.filter(v => v !== null));
+
+    if (allY.length === 0) return;
 
     const minY = Math.min(...allY);
     const maxY = Math.max(...allY);
     const span = (maxY - minY) || 1;
-
-    const x = (i) => padding.left + (labels.length === 1 ? w/2 : (i / (labels.length - 1)) * w);
     const y = (v) => padding.top + (1 - ((v - minY) / span)) * h;
 
     // axes
@@ -471,16 +432,16 @@
     // labels
     ctx.fillStyle = "#40465a";
     ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-
-    const tickCount = Math.min(7, labels.length);
-    for (let t = 0; t < tickCount; t++) {
-      const i = tickCount === 1 ? 0 : Math.round((t/(tickCount-1)) * (labels.length - 1));
-      const lx = x(i);
-      ctx.fillText(labels[i], Math.max(0, lx - 20), padding.top + h + 28);
-    }
-
     ctx.fillText(minY.toFixed(2), 6, padding.top + h);
     ctx.fillText(maxY.toFixed(2), 6, padding.top + 12);
+
+    const tickCount = Math.min(6, N);
+    for (let t = 0; t < tickCount; t++) {
+      const idx = tickCount === 1 ? 0 : Math.round((t/(tickCount-1)) * (N - 1));
+      const lx = x(idx);
+      const lbl = formatLocal(globalSorted[idx].dtISO);
+      ctx.fillText(lbl, Math.max(0, lx - 32), padding.top + h + 28);
+    }
 
     function drawLine(series, stroke, width = 2, dashed = false) {
       ctx.strokeStyle = stroke;
@@ -500,44 +461,43 @@
       ctx.setLineDash([]);
     }
 
-    // series
-    drawLine(values, "#111827", 2, false);     // dato
-    drawLine(maValues, "#2563eb", 3, true);    // MA
+    // data molino (negro)
+    drawLine(molinoSeries, "#111827", 2, false);
 
-    // control lines
-    ctx.strokeStyle = "#7c3aed";
-    ctx.fillStyle = "#7c3aed";
-    if (limits.setpoint !== null) drawHorizontalLine(ctx, cssW, padding, y(limits.setpoint), `Setpoint: ${limits.setpoint}`, [2,0]);
-    ctx.strokeStyle = "#b42318";
-    ctx.fillStyle = "#b42318";
-    if (limits.ucl !== null) drawHorizontalLine(ctx, cssW, padding, y(limits.ucl), `UCL: ${limits.ucl}`, [8,4]);
-    if (limits.lcl !== null) drawHorizontalLine(ctx, cssW, padding, y(limits.lcl), `LCL: ${limits.lcl}`, [8,4]);
+    // MA global (azul punteado)
+    drawLine(maSeries, "#2563eb", 3, true);
 
-    // legend
+    // título
     ctx.fillStyle = "#111827";
-    ctx.fillText("Dato", padding.left + 10, padding.top + 14);
+    ctx.fillText(`Molino ${titleMolino}`, padding.left + 10, padding.top + 14);
+
+    // leyenda
+    ctx.fillStyle = "#111827";
+    ctx.fillText("Dato molino", padding.left + 90, padding.top + 14);
     ctx.fillStyle = "#2563eb";
-    ctx.fillText("Promedio móvil", padding.left + 60, padding.top + 14);
+    ctx.fillText("MA global", padding.left + 170, padding.top + 14);
   }
 
   function render() {
-    const windowSize = Math.max(1, parseInt(els.windowInput.value || "1", 10));
-    state.settings.windowSize = windowSize;
+    state.settings.windowSize = Math.max(1, parseInt(els.windowInput.value || "1", 10));
 
-    const values = state.points.map(p => p.value);
-    const labels = state.points.map(p => p.xLabel);
-    const ma = movingAverage(values, windowSize);
+    // Orden global por fecha/hora
+    const globalSorted = [...state.points].sort((a,b) => a.dtMs - b.dtMs);
 
-    renderTable(values, ma);
-    if (values.length > 0) drawChart(labels, values, ma);
+    // MA global calculado con TODOS los datos
+    const maMap = movingAverageByIndex(globalSorted, state.settings.windowSize);
 
-    const lastMA = [...ma].reverse().find(v => v !== null);
-    const limits = computeLimits();
+    // separar por molino para graficar (solo para la línea negra)
+    const m361 = globalSorted.filter(p => p.molino === "361");
+    const m362 = globalSorted.filter(p => p.molino === "362");
 
+    renderTable(globalSorted, maMap);
+    drawChart(els.chart361, m361, globalSorted, maMap, "361");
+    drawChart(els.chart362, m362, globalSorted, maMap, "362");
+
+    const lastMA = [...globalSorted].reverse().map(p => maMap.get(p.id)).find(v => v !== null);
     els.summary.textContent =
-      `Puntos: ${values.length} | Ventana MA: ${windowSize} | Último MA: ${
-        lastMA === undefined ? "N/A" : lastMA.toFixed(4)
-      } | Setpoint: ${limits.setpoint ?? "—"} | LCL: ${limits.lcl ?? "—"} | UCL: ${limits.ucl ?? "—"}`;
+      `Puntos totales: ${globalSorted.length} | Ventana MA: ${state.settings.windowSize} | Último MA global: ${lastMA === undefined ? "N/A" : lastMA.toFixed(4)}`;
 
     saveToStorage();
   }
@@ -546,8 +506,11 @@
   els.addBtn.addEventListener("click", () => {
     const value = safeNumber(els.valueInput.value);
     if (value === null) return alert("Ingresa un valor numérico válido.");
-    const dateStr = els.dateInput.value || "";
-    addPoint(dateStr, value);
+
+    const dtLocal = els.dtInput.value || nowLocalDatetimeISO();
+    const molino = els.molinoInput.value;
+
+    addPoint(dtLocal, molino, value);
     els.valueInput.value = "";
   });
 
@@ -561,14 +524,15 @@
   els.importBtn.addEventListener("click", () => {
     const parsed = parseBulk(els.bulkInput.value || "");
     if (parsed.length === 0) return alert("No se detectaron valores válidos.");
-    for (const p of parsed) addPoint(p.date, p.value);
+    for (const p of parsed) addPoint(p.dt, p.molino, p.value);
     els.bulkInput.value = "";
   });
 
   els.exportBtn.addEventListener("click", exportCSV);
 
-  els.windowInput.addEventListener("input", () => {
-    readInputsToSettings();
+  els.saveSettingsBtn.addEventListener("click", () => {
+    state.settings.windowSize = Math.max(1, parseInt(els.windowInput.value || "1", 10));
+    saveToStorage();
     render();
   });
 
@@ -578,51 +542,34 @@
     render();
   });
 
-  els.controlMode.addEventListener("change", () => {
-    updateControlModeVisibility();
-  });
-
-  els.saveSettingsBtn.addEventListener("click", () => {
-    readInputsToSettings();
-
-    // Validaciones suaves
-    if (state.settings.showControl === "on" && safeNumber(state.settings.setpoint) === null) {
-      alert("Para mostrar control, ingresa un Setpoint válido (número).");
-      return;
-    }
-    if (state.settings.controlMode === "tolerance" && state.settings.showControl === "on") {
-      if (safeNumber(state.settings.tolerance) === null) {
-        alert("En modo tolerancia, ingresa una tolerancia válida (número).");
-        return;
-      }
-    }
-
-    saveToStorage();
-    render();
-  });
-
-  // Re-render en resize para que el canvas se ajuste
   window.addEventListener("resize", () => render());
 
   // ===== Inicio =====
+  function syncSettingsToInputs() {
+    els.windowInput.value = String(state.settings.windowSize ?? 7);
+  }
+
   const loaded = loadFromStorage();
   syncSettingsToInputs();
 
-  // Si no hay datos guardados, deja unos de ejemplo (solo la primera vez)
+  // Si no hay datos, pone ejemplo
   if (!loaded || state.points.length === 0) {
-    addPoint("2026-01-01", 10);
-    addPoint("2026-01-02", 12);
-    addPoint("2026-01-03", 9);
-    addPoint("2026-01-04", 14);
-    addPoint("2026-01-05", 13);
-    addPoint("2026-01-06", 15);
-    state.settings.setpoint = 12;
-    state.settings.tolerance = 2;
-    syncSettingsToInputs();
+    const base = "2026-01-14T08:00";
+    addPoint(base, "361", 10);
+    addPoint("2026-01-14T08:10", "362", 12);
+    addPoint("2026-01-14T08:20", "361", 9);
+    addPoint("2026-01-14T08:30", "362", 14);
+    addPoint("2026-01-14T08:40", "361", 13);
+    addPoint("2026-01-14T08:50", "362", 15);
+    els.dtInput.value = nowLocalDatetimeISO();
     saveToStorage();
+  } else {
+    els.dtInput.value = nowLocalDatetimeISO();
   }
 
   render();
 </script>
 </body>
 </html>
+
+
